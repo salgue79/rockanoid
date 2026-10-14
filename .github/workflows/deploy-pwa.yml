@@ -1,0 +1,65 @@
+# ============================================================================
+#  ROCKANOID - Publicar como PWA en GitHub Pages (OPCIONAL)
+#  Se lanza a mano: pestaña Actions → "Publicar PWA en GitHub Pages" → Run workflow
+#  Al terminar, el juego queda en  https://TU-USUARIO.github.io/NOMBRE-DEL-REPO/
+#  y desde Chrome (Android) se puede "Instalar aplicacion" sin necesidad de APK.
+# ============================================================================
+name: Publicar PWA en GitHub Pages
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Compilar y publicar
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Descargar el codigo del repositorio
+        uses: actions/checkout@v7
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Instalar dependencias del proyecto
+        run: npm install --no-audit --no-fund
+
+      - name: Generar iconos pixel-art
+        run: node scripts/make-icons.mjs
+
+      - name: Compilar el juego (web)
+        run: npm run build
+
+      - name: Usar rutas relativas (el sitio vive en /nombre-del-repo/)
+        run: |
+          sed -i 's#href="/#href="./#g; s#"/sw.js"#"./sw.js"#g' dist/index.html
+          touch dist/.nojekyll
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Subir el sitio
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4

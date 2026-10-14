@@ -1,0 +1,151 @@
+# ============================================================================
+#  ROCKANOID - Compilar APK de Android (Capacitor 8)
+#  - Se ejecuta solo al subir archivos al repositorio (cualquier rama)
+#  - Tambien se puede lanzar a mano: pestaña Actions → este workflow → Run workflow
+#  - Al terminar, el APK aparece en la seccion "Releases" del repositorio
+#    (y tambien como artefacto "rockanoid-apk" dentro de la ejecucion)
+# ============================================================================
+name: Compilar APK de Android
+
+on:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+
+permissions:
+  contents: write # necesario para crear la Release con el APK
+
+concurrency:
+  group: apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: Generar rockanoid-debug.apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Descargar el codigo del repositorio
+        uses: actions/checkout@v7
+
+      - name: Comprobar que se subieron todos los archivos
+        run: |
+          faltan=0
+          for f in package.json index.html vite.config.ts tsconfig.json capacitor.config.json \
+                   src/main.tsx src/App.tsx src/game/game.ts src/game/renderer.ts \
+                   public/manifest.webmanifest scripts/make-icons.mjs; do
+            if [ ! -e "$f" ]; then
+              echo "::error::Falta el archivo $f"
+              faltan=1
+            fi
+          done
+          if [ "$faltan" = 1 ]; then
+            {
+              echo "## ❌ Faltan archivos en el repositorio"
+              echo ""
+              echo "Sube el **contenido** de la carpeta del proyecto (no la carpeta entera), incluidas las subcarpetas"
+              echo "\`src\`, \`public\` y \`scripts\` y los archivos \`package.json\`, \`index.html\`, \`vite.config.ts\`,"
+              echo "\`tsconfig.json\` y \`capacitor.config.json\`. Después, este proceso se repetirá solo."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "✔ Todos los archivos necesarios están presentes."
+
+      - name: Instalar Node 22
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          package-manager-cache: false
+
+      - name: Instalar JDK 21 (requisito de Capacitor 8)
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Instalar SDK de Android
+        uses: android-actions/setup-android@v4
+
+      - name: Instalar dependencias del proyecto
+        run: npm install --no-audit --no-fund
+
+      - name: Generar iconos pixel-art (PWA + Android)
+        continue-on-error: true
+        run: node scripts/make-icons.mjs
+
+      - name: Compilar el juego (web)
+        run: npm run build
+
+      - name: Crear el proyecto Android con Capacitor
+        run: |
+          if [ ! -d android ]; then npx cap add android; fi
+          npx cap sync android
+
+      - name: Icono de launcher y pantalla de carga nativos
+        continue-on-error: true
+        run: >
+          npx --yes @capacitor/assets generate --android
+          --iconBackgroundColor '#14121c' --iconBackgroundColorDark '#14121c'
+          --splashBackgroundColor '#14121c' --splashBackgroundColorDark '#14121c'
+
+      - name: Forzar orientacion horizontal y pantalla completa
+        continue-on-error: true
+        run: |
+          M=android/app/src/main/AndroidManifest.xml
+          S=android/app/src/main/res/values/styles.xml
+          grep -q 'screenOrientation' "$M" || sed -i '0,/<activity/s//<activity android:screenOrientation="sensorLandscape"/' "$M"
+          grep -q 'windowFullscreen' "$S" || sed -i 's#<item name="windowNoTitle">true</item>#&<item name="android:windowFullscreen">true</item>#' "$S"
+
+      - name: Compilar APK con Gradle
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Renombrar el APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk rockanoid-debug.apk
+
+      - name: Guardar APK como artefacto de la ejecucion
+        uses: actions/upload-artifact@v7
+        with:
+          name: rockanoid-apk
+          path: rockanoid-debug.apk
+          if-no-files-found: error
+
+      - name: Publicar APK en Releases (descarga directa)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Rockanoid APK (build ${{ github.run_number }})
+          files: rockanoid-debug.apk
+          body: |
+            ## 🦕 ROCKANOID - La Era de Piedra
+
+            **Instalar en Android:**
+            1. Descarga `rockanoid-debug.apk` (abajo, en *Assets*) desde el móvil.
+            2. Ábrelo. Si Android pregunta, permite *"Instalar aplicaciones desconocidas"* para tu navegador.
+            3. Si Play Protect avisa, elige *"Instalar de todos modos"* (es un APK de prueba sin firma de tienda).
+
+            © 2026 Physical Dreams · Compilado automáticamente con GitHub Actions a partir del commit `${{ github.sha }}`.
+
+      - name: Resumen con el enlace de descarga
+        if: success()
+        run: |
+          {
+            echo "## ✅ ¡APK generado correctamente!"
+            echo ""
+            echo "### 📲 Descárgalo desde el móvil: https://github.com/${{ github.repository }}/releases/latest"
+            echo ""
+            echo "Archivo: \`rockanoid-debug.apk\` · Build ${{ github.run_number }} · © 2026 Physical Dreams"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Ayuda si algo fallo
+        if: failure()
+        run: |
+          {
+            echo "## ❌ La compilación ha fallado"
+            echo ""
+            echo "Haz clic en el paso marcado en rojo (arriba), copia el texto del error y pégaselo al asistente que creó el juego."
+            echo "Después de corregirlo, vuelve a subir los archivos o pulsa **Re-run jobs**."
+          } >> "$GITHUB_STEP_SUMMARY"

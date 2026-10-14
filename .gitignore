@@ -1,0 +1,19 @@
+node_modules
+dist
+*.log
+.DS_Store
+
+# Proyecto nativo generado por Capacitor (se recrea con `npx cap add android`)
+android/app/build
+android/.gradle
+android/.idea
+android/local.properties
+android/*.iml
+android/app/*.iml
+android/build
+android/captures
+android/app/release
+
+# Firmas de release (no subir nunca)
+*.jks
+*.keystore

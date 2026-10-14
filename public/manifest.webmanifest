@@ -1,0 +1,18 @@
+{
+  "name": "ROCKANOID - La Era de Piedra",
+  "short_name": "Rockanoid",
+  "description": "Arkanoid prehistórico estilo Master System con 40 rondas, 5 zonas y un T-Rex final. Un juego de Physical Dreams.",
+  "id": "./",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#14121c",
+  "theme_color": "#14121c",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

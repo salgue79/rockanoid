@@ -1,0 +1,13 @@
+{
+  "appId": "com.physicaldreams.rockanoid",
+  "appName": "Rockanoid",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#14121c",
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  }
+}
